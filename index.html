@@ -1,10 +1,42 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
+  <!doctype html>
+<html lang="pt-BR">
+<head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>BTX - Acompanhamento Ativo (MVP Offline)</title>
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="description" content="Acompanhamento ativo da adesão terapêutica e continuidade do cuidado (offline-first)." />
 
+  <title>BTX Acompanhamento Ativo</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+
+  <!-- (opcional) evita cache agressivo no HTML -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <script>
+    // Registra o Service Worker (offline + update controlado)
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(console.error);
+      });
+    }
+  </script>
+</head>
+
+<body>
+  <!-- SEU APP CONTINUA AQUI (não apaga o seu layout; cola seu conteúdo aqui) -->
+  <h1 style="font-family:system-ui; padding:16px;">BTX Acompanhamento Ativo</h1>
+  <p style="font-family:system-ui; padding:0 16px;">Cole aqui o corpo do seu app (o layout atual).</p>
+</body>
+</html>
   <style>
     :root{
       --bg:#0b1020;
