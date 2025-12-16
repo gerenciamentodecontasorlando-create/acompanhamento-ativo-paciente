@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BTX - Acompanhamento Ativo (MVP Offline)</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:#111a33;
+      --panel2:#0f1730;
+      --text:#e7ecff;
+      --muted:#aab3d6;
+      --stroke:rgba(255,255,255,.10);
+      --accent:#4aa3ff;
+      --ok:#31d07d;
+      --warn:#ffcc66;
+      --bad:#ff5d6c;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1000px 600px at 10% 10%, rgba(74,163,255,.18), transparent 60%),
+                  radial-gradient(900px 500px at 90% 20%, rgba(49,208,125,.12), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+    }
+    header{
+      position:sticky; top:0; z-index:10;
+      backdrop-filter: blur(10px);
+      background: rgba(11,16,32,.75);
+      border-bottom: 1px solid var(--stroke);
+    }
+    .wrap{max-width:1100px; margin:0 auto; padding:16px}
+    .row{display:flex; gap:12px; flex-wrap:wrap}
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      font-weight:800; letter-spacing:.4px;
+    }
+    .logo{
+      width:34px; height:34px; border-radius:12px;
+      background: linear-gradient(135deg, rgba(74,163,255,.95), rgba(74,163,255,.20));
+      border:1px solid rgba(255,255,255,.18);
+      box-shadow: 0 10px 30px rgba(74,163,255,.15);
+    }
+    .pill{
+      font-size:12px; color:var(--muted);
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.04);
+      padding:6px 10px; border-radius:999px;
+    }
+    .btn{
+      appearance:none; border:none; cursor:pointer;
+      padding:10px 12px; border-radius:12px;
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      border:1px solid var(--stroke);
+      transition:.15s transform, .15s background;
+      display:inline-flex; align-items:center; gap:8px;
+      user-select:none;
+    }
+    .btn:hover{background: rgba(255,255,255,.09)}
+    .btn:active{transform: translateY(1px)}
+    .btn.primary{
+      background: rgba(74,163,255,.18);
+      border-color: rgba(74,163,255,.35);
+    }
+    .btn.danger{
+      background: rgba(255,93,108,.12);
+      border-color: rgba(255,93,108,.35);
+    }
+    main{padding:16px}
+    .grid{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap:14px;
+    }
+    @media (max-width: 920px){
+      .grid{grid-template-columns:1fr}
+    }
+    .card{
+      background: linear-gradient(180deg, rgba(17,26,51,.92), rgba(15,23,48,.92));
+      border:1px solid var(--stroke);
+      border-radius:18px;
+      padding:14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    }
+    .card h2{margin:0 0 10px 0; font-size:16px}
+    .muted{color:var(--muted)}
+    .field{display:flex; flex-direction:column; gap:6px; margin:10px 0}
+    label{font-size:12px; color:var(--muted)}
+    input, select, textarea{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--stroke);
+      background: rgba(0,0,0,.18);
+      color:var(--text);
+      outline:none;
+    }
+    textarea{min-height:88px; resize:vertical}
+    .toolbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    .list{display:flex; flex-direction:column; gap:10px}
+    .item{
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.04);
+      padding:12px;
+      border-radius:16px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      justify-content:space-between;
+    }
+    .item .left{min-width:0}
+    .title{font-weight:700}
+    .sub{font-size:12px; color:var(--muted); margin-top:2px}
+    .badge{
+      font-size:12px; padding:6px 10px; border-radius:999px;
+      border:1px solid var(--stroke);
+      background: rgba(255,255,255,.03);
+      display:inline-flex; gap:6px; align-items:center;
+      white-space:nowrap;
+    }
+    .dot{width:10px; height:10px; border-radius:50%}
+    .dot.ok{background: var(--ok)}
+    .dot.warn{background: var(--warn)}
+    .dot.bad{background: var(--bad)}
+    .split{display:flex; gap:10px}
+    .split > *{flex:1}
+    .small{font-size:12px}
+    .hr{height:1px; background: var(--stroke); margin:10px 0}
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:12px; color:var(--muted);
+    }
+    .toast{
+      position: fixed; left:50%; bottom:16px; transform: translateX(-50%);
+      background: rgba(17,26,51,.95);
+      border:1px solid var(--stroke);
+      padding:10px 12px;
+      border-radius:14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+      display:none;
+      max-width:min(640px, 92vw);
+    }
+    .toast.show{display:block}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, monospace}
+    .dangerText{color: #ff9aa4}
+    .okText{color:#98f5c4}
+    .warnText{color:#ffe3a8}
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap row" style="justify-content:space-between; align-items:center;">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <div>BTX • Acompanhamento Ativo</div>
+        <div class="muted small">MVP Offline (localStorage) • Semáforo de risco • TB como exemplo</div>
+      </div>
+    </div>
+    <div class="row" style="align-items:center;">
+      <span class="pill" id="statsPill">—</span>
+      <button class="btn" id="btnBackup">Exportar dados</button>
+      <button class="btn" id="btnRestore">Importar</button>
+      <button class="btn danger" id="btnWipe" title="Apaga apenas os dados deste navegador">Limpar tudo</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="grid">
+    <!-- Painel do profissional -->
+    <section class="card">
+      <h2>👨‍⚕️ Painel do profissional</h2>
+
+      <div class="toolbar">
+        <input id="search" placeholder="Buscar por nome, CNS/CPF, condição…" />
+        <select id="filterRisk">
+          <option value="ALL">Todos</option>
+          <option value="OK">🟢 Em dia</option>
+          <option value="WARN">🟡 Atenção</option>
+          <option value="BAD">🔴 Risco/abandono</option>
+        </select>
+        <button class="btn primary" id="btnNewPatient">+ Novo paciente</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="list" id="patientsList"></div>
+
+      <div class="hr"></div>
+
+      <div class="small muted">
+        Regra do semáforo (editável no código):
+        <span class="okText">🟢</span> ≤ 2 dias sem check-in •
+        <span class="warnText">🟡</span> 3–6 dias •
+        <span class="dangerText">🔴</span> ≥ 7 dias (ou retorno atrasado)
+      </div>
+    </section>
+
+    <!-- Detalhe do paciente -->
+    <section class="card" id="patientCard">
+      <h2>🧑‍🦽 Paciente</h2>
+      <div class="muted small">Selecione um paciente no painel. Ou crie um novo.</div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</main>
+
+<script>
+/**
+ * BTX Acompanhamento Ativo — MVP Offline
+ * - Tudo em 1 arquivo
+ * - Armazenamento: localStorage
+ * - Pode virar PWA depois (manifest + service worker)
+ */
+
+const STORE_KEY = "btx_followup_v1";
+
+function uid(){
+  return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+function todayISO(){
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,"0");
+  const dd = String(d.getDate()).padStart(2,"0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function parseISO(s){ // "YYYY-MM-DD" -> Date local
+  const [y,m,d] = s.split("-").map(Number);
+  return new Date(y, m-1, d);
+}
+function daysBetween(aISO, bISO){
+  const a = parseISO(aISO);
+  const b = parseISO(bISO);
+  const ms = 24*60*60*1000;
+  return Math.floor((b - a) / ms);
+}
+function fmtBR(iso){
+  try{
+    const d = parseISO(iso);
+    return d.toLocaleDateString("pt-BR");
+  }catch(e){
+    return iso;
+  }
+}
+
+function load(){
+  const raw = localStorage.getItem(STORE_KEY);
+  if(!raw){
+    const seed = { patients: [], created_at: new Date().toISOString(), version: 1 };
+    localStorage.setItem(STORE_KEY, JSON.stringify(seed));
+    return seed;
+  }
+  try{ return JSON.parse(raw); }
+  catch(e){
+    const seed = { patients: [], created_at: new Date().toISOString(), version: 1 };
+    localStorage.setItem(STORE_KEY, JSON.stringify(seed));
+    return seed;
+  }
+}
+function save(db){
+  localStorage.setItem(STORE_KEY, JSON.stringify(db));
+  renderAll();
+}
+function toast(msg){
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(()=> el.classList.remove("show"), 2200);
+}
+
+// ====== RISCO (Semáforo) ======
+// Você pode ajustar aqui conforme o protocolo que quiser.
+function computeRisk(p){
+  const t = p.tracking;
+  const now = todayISO();
+
+  // Se não tem check-in ainda, usa data de início / cadastro como referência
+  const last = t.last_checkin || t.start_date || p.created_at.slice(0,10);
+  const gap = Math.max(0, daysBetween(last, now));
+
+  // retorno
+  const nextVisit = t.next_visit_date || null;
+  const visitLate = nextVisit ? daysBetween(nextVisit, now) : 0; // >0 significa atrasado
+
+  // regra simples:
+  // - BAD se gap >=7 ou retorno atrasado >=1 dia
+  // - WARN se gap entre 3..6
+  // - OK se gap <=2
+  let level = "OK";
+  let reason = `Último check-in: ${fmtBR(last)} (há ${gap} dia(s))`;
+
+  if(visitLate > 0){
+    level = "BAD";
+    reason = `Retorno atrasado há ${visitLate} dia(s) (previsto: ${fmtBR(nextVisit)})`;
+  } else if(gap >= 7){
+    level = "BAD";
+    reason = `Sem check-in há ${gap} dia(s) (último: ${fmtBR(last)})`;
+  } else if(gap >= 3){
+    level = "WARN";
+    reason = `Atenção: ${gap} dia(s) sem check-in (último: ${fmtBR(last)})`;
+  }
+  return { level, reason, gap, visitLate };
+}
+
+// ====== UI / STATE ======
+let DB = load();
+let selectedId = null;
+
+const elList = document.getElementById("patientsList");
+const elPatientCard = document.getElementById("patientCard");
+const elSearch = document.getElementById("search");
+const elFilterRisk = document.getElementById("filterRisk");
+const elStatsPill = document.getElementById("statsPill");
+
+document.getElementById("btnNewPatient").addEventListener("click", ()=> openPatientForm());
+document.getElementById("btnBackup").addEventListener("click", exportData);
+document.getElementById("btnRestore").addEventListener("click", importData);
+document.getElementById("btnWipe").addEventListener("click", ()=>{
+  if(confirm("Tem certeza? Isso apaga os dados deste navegador (não afeta outros aparelhos).")){
+    localStorage.removeItem(STORE_KEY);
+    DB = load();
+    selectedId = null;
+    renderAll();
+    toast("Base limpa.");
+  }
+});
+elSearch.addEventListener("input", renderList);
+elFilterRisk.addEventListener("change", renderList);
+
+function renderAll(){
+  renderList();
+  renderPatientCard();
+  renderStats();
+}
+
+function renderStats(){
+  const pts = DB.patients;
+  let ok=0,warn=0,bad=0;
+  for(const p of pts){
+    const r = computeRisk(p).level;
+    if(r==="OK") ok++;
+    else if(r==="WARN") warn++;
+    else bad++;
+  }
+  elStatsPill.textContent = `Pacientes: ${pts.length} • 🟢 ${ok} • 🟡 ${warn} • 🔴 ${bad}`;
+}
+
+function renderList(){
+  const q = (elSearch.value||"").trim().toLowerCase();
+  const filter = elFilterRisk.value;
+
+  const rows = DB.patients
+    .map(p => ({ p, risk: computeRisk(p) }))
+    .filter(({p,risk})=>{
+      if(filter !== "ALL" && risk.level !== filter) return false;
+      if(!q) return true;
+      const hay = [
+        p.name, p.id_doc||"", p.condition||"",
+        p.tracking?.regimen||"", p.notes||""
+      ].join(" ").toLowerCase();
+      return hay.includes(q);
+    })
+    .sort((a,b)=>{
+      const order = { "BAD":0, "WARN":1, "OK":2 };
+      if(order[a.risk.level] !== order[b.risk.level]) return order[a.risk.level] - order[b.risk.level];
+      // se mesmo risco, mais dias sem checkin primeiro
+      return (b.risk.gap - a.risk.gap);
+    });
+
+  elList.innerHTML = "";
+  if(rows.length === 0){
+    elList.innerHTML = `<div class="muted small">Nenhum paciente encontrado.</div>`;
+    return;
+  }
+
+  for(const {p,risk} of rows){
+    const isSel = p.id === selectedId;
+    const dotClass = risk.level === "OK" ? "ok" : (risk.level === "WARN" ? "warn" : "bad");
+    const label = risk.level === "OK" ? "Em dia" : (risk.level === "WARN" ? "Atenção" : "Risco");
+    const item = document.createElement("div");
+    item.className = "item";
+    item.style.outline = isSel ? "2px solid rgba(74,163,255,.55)" : "none";
+
+    item.innerHTML = `
+      <div class="left">
+        <div class="title">${escapeHTML(p.name)} <span class="muted small">• ${escapeHTML(p.condition || "—")}</span></div>
+        <div class="sub">${escapeHTML(risk.reason)}</div>
+        <div class="sub">Doc/CNS/CPF: <span class="mono">${escapeHTML(p.id_doc || "—")}</span></div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+        <span class="badge"><span class="dot ${dotClass}"></span>${label}</span>
+        <button class="btn" data-open="${p.id}">Abrir</button>
+      </div>
+    `;
+    item.querySelector("[data-open]").addEventListener("click", ()=>{
+      selectedId = p.id;
+      renderAll();
+    });
+    elList.appendChild(item);
+  }
+}
+
+function renderPatientCard(){
+  const p = DB.patients.find(x => x.id === selectedId);
+  if(!p){
+    elPatientCard.innerHTML = `
+      <h2>🧑‍🦽 Paciente</h2>
+      <div class="muted small">Selecione um paciente no painel. Ou crie um novo.</div>
+      <div class="hr"></div>
+      <div class="toolbar">
+        <button class="btn primary" onclick="openPatientForm()">+ Novo paciente</button>
+      </div>
+    `;
+    return;
+  }
+
+  const risk = computeRisk(p);
+  const dotClass = risk.level === "OK" ? "ok" : (risk.level === "WARN" ? "warn" : "bad");
+  const label = risk.level === "OK" ? "🟢 Em dia" : (risk.level === "WARN" ? "🟡 Atenção" : "🔴 Risco");
+
+  const last = p.tracking.last_checkin || "—";
+  const next = p.tracking.next_visit_date || "—";
+
+  elPatientCard.innerHTML = `
+    <div class="row" style="justify-content:space-between; align-items:flex-start;">
+      <div style="min-width:0;">
+        <h2 style="margin-bottom:6px;">${escapeHTML(p.name)}</h2>
+        <div class="muted small">Condição: <b>${escapeHTML(p.condition || "—")}</b> • Doc: <span class="mono">${escapeHTML(p.id_doc||"—")}</span></div>
+        <div class="muted small">Criado em: ${fmtBR(p.created_at.slice(0,10))}</div>
+      </div>
+      <div class="badge"><span class="dot ${dotClass}"></span>${label}</div>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="split">
+      <div class="card" style="padding:12px; background:rgba(255,255,255,.03);">
+        <div class="title">📌 Acompanhamento</div>
+        <div class="sub">Início: <b>${fmtBR(p.tracking.start_date || "—")}</b></div>
+        <div class="sub">Esquema: <b>${escapeHTML(p.tracking.regimen || "—")}</b></div>
+        <div class="sub">Duração prevista: <b>${escapeHTML(p.tracking.duration_months || "—")}</b> meses</div>
+        <div class="sub">Último check-in: <b>${last==="—" ? "—" : fmtBR(last)}</b></div>
+        <div class="sub">Próximo retorno: <b>${next==="—" ? "—" : fmtBR(next)}</b></div>
+      </div>
+
+      <div class="card" style="padding:12px; background:rgba(255,255,255,.03);">
+        <div class="title">⚡ Ações rápidas</div>
+        <div class="row">
+          <button class="btn primary" id="btnTaken">✅ Tomei hoje</button>
+          <button class="btn" id="btnSideFx">⚠️ Efeito colateral</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="btnVisitDone">🏥 Retorno realizado</button>
+          <button class="btn" id="btnSetNext">📅 Agendar retorno</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="btnPrint">🖨️ Imprimir resumo</button>
+          <button class="btn danger" id="btnDelete">🗑️ Excluir</button>
+        </div>
+        <div class="sub">Motivo do semáforo: ${escapeHTML(risk.reason)}</div>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <h2>📝 Observações e histórico</h2>
+
+    <div class="field">
+      <label>Notas rápidas (visão clínica objetiva)</label>
+      <textarea id="notes" placeholder="Ex.: orientado sobre adesão; náuseas leves; reforço de retorno mensal…">${escapeHTML(p.notes||"")}</textarea>
+      <div class="toolbar">
+        <button class="btn" id="btnSaveNotes">Salvar notas</button>
+        <span class="muted small">Dica: manter curto, estilo “linha do tempo”.</span>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="title">📜 Linha do tempo (eventos)</div>
+    <div class="muted small">Check-ins, efeitos colaterais, retornos e registros rápidos.</div>
+    <div style="margin-top:10px;" class="list" id="timeline"></div>
+
+    <div class="hr"></div>
+
+    <div class="title">➕ Adicionar evento manual</div>
+    <div class="split">
+      <div class="field">
+        <label>Data</label>
+        <input id="evDate" type="date" value="${todayISO()}" />
+      </div>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="evType">
+          <option value="note">Nota</option>
+          <option value="call">Contato/ligação</option>
+          <option value="visit">Atendimento/retorno</option>
+          <option value="exam">Exame</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Descrição</label>
+      <textarea id="evText" placeholder="Ex.: ACS orientou; paciente relatou tontura; exame solicitado…"></textarea>
+    </div>
+    <div class="toolbar">
+      <button class="btn" id="btnAddEvent">Adicionar evento</button>
+      <button class="btn" id="btnEditPatient">Editar cadastro</button>
+    </div>
+  `;
+
+  // Wire events
+  document.getElementById("btnTaken").onclick = ()=> addCheckin(p.id, "taken");
+  document.getElementById("btnSideFx").onclick = ()=> {
+    const desc = prompt("Descreva o efeito colateral (curto):", "Náusea / dor abdominal / tontura…");
+    if(desc && desc.trim()) addCheckin(p.id, "sidefx", desc.trim());
+  };
+  document.getElementById("btnVisitDone").onclick = ()=> markVisitDone(p.id);
+  document.getElementById("btnSetNext").onclick = ()=> setNextVisit(p.id);
+  document.getElementById("btnPrint").onclick = ()=> printSummary(p.id);
+  document.getElementById("btnDelete").onclick = ()=> deletePatient(p.id);
+
+  document.getElementById("btnSaveNotes").onclick = ()=>{
+    const val = document.getElementById("notes").value || "";
+    updatePatient(p.id, { notes: val });
+    toast("Notas salvas.");
+  };
+
+  document.getElementById("btnAddEvent").onclick = ()=>{
+    const date = document.getElementById("evDate").value || todayISO();
+    const type = document.getElementById("evType").value;
+    const text = (document.getElementById("evText").value || "").trim();
+    if(!text) return toast("Escreva uma descrição.");
+    addEvent(p.id, { date, type, text });
+    document.getElementById("evText").value = "";
+    toast("Evento adicionado.");
+  };
+
+  document.getElementById("btnEditPatient").onclick = ()=> openPatientForm(p);
+
+  renderTimeline(p);
+}
+
+function renderTimeline(p){
+  const el = document.getElementById("timeline");
+  if(!el) return;
+
+  const events = [...(p.events||[])].sort((a,b)=> (a.date < b.date ? 1 : -1));
+  if(events.length === 0){
+    el.innerHTML = `<div class="muted small">Sem eventos ainda.</div>`;
+    return;
+  }
+
+  el.innerHTML = "";
+  for(const ev of events){
+    const tag = ev.type === "taken" ? "✅ Dose confirmada"
+              : ev.type === "sidefx" ? "⚠️ Efeito colateral"
+              : ev.type === "visit" ? "🏥 Atendimento/retorno"
+              : ev.type === "call" ? "📞 Contato"
+              : ev.type === "exam" ? "🧪 Exame"
+              : "📝 Nota";
+
+    const item = document.createElement("div");
+    item.className = "item";
+    item.innerHTML = `
+      <div class="left">
+        <div class="title">${tag} <span class="muted small">• ${fmtBR(ev.date)}</span></div>
+        <div class="sub">${escapeHTML(ev.text || "")}</div>
+      </div>
+      <div>
+        <button class="btn" title="Remover" data-del="${ev.id}">Remover</button>
+      </div>
+    `;
+    item.querySelector("[data-del]").onclick = ()=>{
+      if(confirm("Remover este evento?")){
+        removeEvent(p.id, ev.id);
+      }
+    };
+    el.appendChild(item);
+  }
+}
+
+// ====== CRUD ======
+function updatePatient(id, patch){
+  const idx = DB.patients.findIndex(x => x.id === id);
+  if(idx < 0) return;
+  DB.patients[idx] = { ...DB.patients[idx], ...patch };
+  save(DB);
+}
+function addEvent(patientId, ev){
+  const p = DB.patients.find(x => x.id === patientId);
+  if(!p) return;
+  p.events = p.events || [];
+  p.events.push({ id: uid(), ...ev });
+  save(DB);
+}
+function removeEvent(patientId, eventId){
+  const p = DB.patients.find(x => x.id === patientId);
+  if(!p) return;
+  p.events = (p.events || []).filter(e => e.id !== eventId);
+  save(DB);
+  toast("Evento removido.");
+}
+function addCheckin(patientId, kind, desc=""){
+  const now = todayISO();
+  const p = DB.patients.find(x => x.id === patientId);
+  if(!p) return;
+
+  p.tracking.last_checkin = now;
+
+  if(kind === "taken"){
+    addEvent(patientId, { date: now, type: "taken", text: "Dose confirmada pelo paciente." });
+    toast("Check-in registrado: tomou hoje.");
+  } else {
+    addEvent(patientId, { date: now, type: "sidefx", text: desc || "Efeito colateral relatado." });
+    toast("Registrado: efeito colateral.");
+  }
+  save(DB);
+}
+function setNextVisit(patientId){
+  const p = DB.patients.find(x => x.id === patientId);
+  if(!p) return;
+
+  const suggested = p.tracking.next_visit_date || "";
+  const val = prompt("Próximo retorno (YYYY-MM-DD):", suggested || todayISO());
+  if(!val) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(val)) return toast("Formato inválido.");
+  p.tracking.next_visit_date = val;
+  addEvent(patientId, { date: todayISO(), type: "note", text: `Retorno agendado para ${fmtBR(val)}.` });
+  save(DB);
+  toast("Retorno agendado.");
+}
+function markVisitDone(patientId){
+  const p = DB.patients.find(x => x.id === patientId);
+  if(!p) return;
+
+  const date = prompt("Data do retorno (YYYY-MM-DD):", todayISO());
+  if(!date) return;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast("Formato inválido.");
+
+  addEvent(patientId, { date, type:"visit", text:"Retorno realizado." });
+
+  // sugestão: próximo retorno em 30 dias (simplão)
+  const d = parseISO(date);
+  d.setDate(d.getDate()+30);
+  const next = d.toISOString().slice(0,10);
+  p.tracking.next_visit_date = next;
+  save(DB);
+  toast("Retorno registrado (próximo sugerido +30d).");
+}
+function deletePatient(patientId){
+  if(!confirm("Excluir paciente e todos os eventos?")) return;
+  DB.patients = DB.patients.filter(x => x.id !== patientId);
+  if(selectedId === patientId) selectedId = null;
+  save(DB);
+  toast("Paciente excluído.");
+}
+
+// ====== FORM (Novo/Editar Paciente) ======
+function openPatientForm(existing=null){
+  const isEdit = !!existing;
+  const p = existing || {
+    id: uid(),
+    created_at: new Date().toISOString(),
+    name: "",
+    id_doc: "",
+    condition: "Tuberculose",
+    notes: "",
+    tracking: {
+      start_date: todayISO(),
+      regimen: "RHZE (exemplo)",
+      duration_months: 6,
+      next_visit_date: ""
+    },
+    events: []
+  };
+
+  elPatientCard.innerHTML = `
+    <h2>${isEdit ? "✏️ Editar paciente" : "➕ Novo paciente"}</h2>
+    <div class="muted small">Cadastro simples, rápido e prático. Regra de ouro: <b>30 segundos</b>.</div>
+    <div class="hr"></div>
+
+    <div class="field">
+      <label>Nome</label>
+      <input id="fName" value="${escapeAttr(p.name)}" placeholder="Ex.: João da Silva" />
+    </div>
+
+    <div class="split">
+      <div class="field">
+        <label>Documento/CNS/CPF (opcional)</label>
+        <input id="fDoc" value="${escapeAttr(p.id_doc)}" placeholder="Ex.: CNS / CPF" />
+      </div>
+      <div class="field">
+        <label>Condição principal</label>
+        <input id="fCond" value="${escapeAttr(p.condition)}" placeholder="Ex.: Tuberculose" />
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="field">
+        <label>Início do tratamento</label>
+        <input id="fStart" type="date" value="${escapeAttr(p.tracking.start_date || todayISO())}" />
+      </div>
+      <div class="field">
+        <label>Duração (meses)</label>
+        <input id="fDur" type="number" min="1" max="36" value="${escapeAttr(String(p.tracking.duration_months ?? 6))}" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Esquema / protocolo (texto)</label>
+      <input id="fReg" value="${escapeAttr(p.tracking.regimen || "")}" placeholder="Ex.: RHZE" />
+    </div>
+
+    <div class="field">
+      <label>Próximo retorno (opcional)</label>
+      <input id="fNext" type="date" value="${escapeAttr(p.tracking.next_visit_date || "")}" />
+    </div>
+
+    <div class="field">
+      <label>Notas rápidas</label>
+      <textarea id="fNotes" placeholder="Ex.: orientado sobre adesão; contato ACS…">${escapeHTML(p.notes || "")}</textarea>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn primary" id="btnSave">${isEdit ? "Salvar alterações" : "Salvar paciente"}</button>
+      <button class="btn" id="btnCancel">Cancelar</button>
+    </div>
+
+    <div class="hr"></div>
+    <div class="muted small">
+      Dica de TB: se você quiser, depois a gente adiciona “fases”, “baciloscopia mensal”, “DOT/TS”, e alertas por microárea.
+    </div>
+  `;
+
+  document.getElementById("btnCancel").onclick = ()=> { renderPatientCard(); };
+  document.getElementById("btnSave").onclick = ()=>{
+    const name = (document.getElementById("fName").value || "").trim();
+    if(!name) return toast("Nome é obrigatório.");
+
+    p.name = name;
+    p.id_doc = (document.getElementById("fDoc").value || "").trim();
+    p.condition = (document.getElementById("fCond").value || "").trim() || "—";
+
+    p.tracking.start_date = document.getElementById("fStart").value || todayISO();
+    p.tracking.duration_months = Number(document.getElementById("fDur").value || 6);
+    p.tracking.regimen = (document.getElementById("fReg").value || "").trim() || "—";
+    p.tracking.next_visit_date = document.getElementById("fNext").value || "";
+
+    p.notes = document.getElementById("fNotes").value || "";
+
+    if(isEdit){
+      const idx = DB.patients.findIndex(x => x.id === p.id);
+      if(idx >= 0) DB.patients[idx] = p;
+      selectedId = p.id;
+      save(DB);
+      toast("Paciente atualizado.");
+    } else {
+      DB.patients.push(p);
+      selectedId = p.id;
+      // cria um evento inicial
+      addEvent(p.id, { date: todayISO(), type:"note", text:`Cadastro criado. Início do tratamento: ${fmtBR(p.tracking.start_date)}.` });
+      save(DB);
+      toast("Paciente criado.");
+    }
+  };
+}
+
+// ====== Export / Import ======
+function exportData(){
+  const blob = new Blob([JSON.stringify(DB, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `btx_backup_${todayISO()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast("Backup exportado.");
+}
+
+function importData(){
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = "application/json";
+  inp.onchange = async ()=>{
+    const file = inp.files?.[0];
+    if(!file) return;
+    try{
+      const text = await file.text();
+      const json = JSON.parse(text);
+      if(!json || !Array.isArray(json.patients)) throw new Error("Formato inválido.");
+      DB = json;
+      selectedId = DB.patients[0]?.id || null;
+      save(DB);
+      toast("Importação concluída.");
+    }catch(e){
+      alert("Falha ao importar: " + (e?.message || e));
+    }
+  };
+  inp.click();
+}
+
+// ====== Print summary ======
+function printSummary(patientId){
+  const p = DB.patients.find(x => x.id === patientId);
+  if(!p) return;
+  const r = computeRisk(p);
+
+  const events = [...(p.events||[])].sort((a,b)=> (a.date < b.date ? 1 : -1)).slice(0, 25);
+
+  const html = `
+  <html><head><meta charset="utf-8"/>
+    <title>Resumo - ${escapeHTML(p.name)}</title>
+    <style>
+      body{font-family: Arial, sans-serif; margin:24px;}
+      h1{margin:0 0 6px 0;}
+      .muted{color:#555; font-size:12px;}
+      .box{border:1px solid #ddd; padding:12px; border-radius:12px; margin:12px 0;}
+      .badge{display:inline-block; padding:6px 10px; border-radius:999px; border:1px solid #ddd; font-size:12px;}
+      table{width:100%; border-collapse:collapse; margin-top:10px;}
+      td,th{border-bottom:1px solid #eee; padding:8px; text-align:left; font-size:12px;}
+    </style>
+  </head><body>
+    <h1>Resumo do Acompanhamento</h1>
+    <div class="muted">Gerado em ${new Date().toLocaleString("pt-BR")}</div>
+
+    <div class="box">
+      <div><b>Paciente:</b> ${escapeHTML(p.name)}</div>
+      <div><b>Condição:</b> ${escapeHTML(p.condition||"—")}</div>
+      <div><b>Documento/CNS/CPF:</b> ${escapeHTML(p.id_doc||"—")}</div>
+      <div><b>Semáforo:</b> <span class="badge">${r.level}</span> — ${escapeHTML(r.reason)}</div>
+    </div>
+
+    <div class="box">
+      <div><b>Início:</b> ${fmtBR(p.tracking.start_date || "—")}</div>
+      <div><b>Esquema:</b> ${escapeHTML(p.tracking.regimen || "—")}</div>
+      <div><b>Duração prevista:</b> ${escapeHTML(String(p.tracking.duration_months || "—"))} meses</div>
+      <div><b>Último check-in:</b> ${p.tracking.last_checkin ? fmtBR(p.tracking.last_checkin) : "—"}</div>
+      <div><b>Próximo retorno:</b> ${p.tracking.next_visit_date ? fmtBR(p.tracking.next_visit_date) : "—"}</div>
+    </div>
+
+    <div class="box">
+      <div><b>Notas:</b></div>
+      <div style="white-space:pre-wrap; font-size:12px;">${escapeHTML(p.notes||"")}</div>
+    </div>
+
+    <div class="box">
+      <div><b>Últimos eventos (até 25)</b></div>
+      <table>
+        <thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th></tr></thead>
+        <tbody>
+          ${events.map(ev => `
+            <tr>
+              <td>${fmtBR(ev.date)}</td>
+              <td>${escapeHTML(ev.type)}</td>
+              <td>${escapeHTML(ev.text||"")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="muted">Dica: use “Imprimir” e selecione “Salvar em PDF”.</div>
+  </body></html>`;
+
+  const w = window.open("", "_blank");
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(()=> w.print(), 350);
+}
+
+// ====== Helpers anti-injeção (simples) ======
+function escapeHTML(str){
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+function escapeAttr(str){
+  return escapeHTML(str).replaceAll("\n"," ");
+}
+
+// init
+function firstRunSelect(){
+  if(DB.patients.length && !selectedId){
+    selectedId = DB.patients[0].id;
+  }
+}
+firstRunSelect();
+renderAll();
+</script>
+</body>
+</html>
