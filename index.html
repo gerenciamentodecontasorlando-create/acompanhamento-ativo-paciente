@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>BTX - Acompanhamento Ativo (MVP Offline)</title>
+
   <style>
     :root{
       --bg:#0b1020;
@@ -16,6 +17,7 @@
       --ok:#31d07d;
       --warn:#ffcc66;
       --bad:#ff5d6c;
+      --violet:#b39cff;
     }
     *{box-sizing:border-box}
     body{
@@ -34,10 +36,7 @@
     }
     .wrap{max-width:1100px; margin:0 auto; padding:16px}
     .row{display:flex; gap:12px; flex-wrap:wrap}
-    .brand{
-      display:flex; align-items:center; gap:10px;
-      font-weight:800; letter-spacing:.4px;
-    }
+    .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.4px;}
     .logo{
       width:34px; height:34px; border-radius:12px;
       background: linear-gradient(135deg, rgba(74,163,255,.95), rgba(74,163,255,.20));
@@ -49,6 +48,7 @@
       border:1px solid var(--stroke);
       background: rgba(255,255,255,.04);
       padding:6px 10px; border-radius:999px;
+      white-space:nowrap;
     }
     .btn{
       appearance:none; border:none; cursor:pointer;
@@ -66,9 +66,17 @@
       background: rgba(74,163,255,.18);
       border-color: rgba(74,163,255,.35);
     }
+    .btn.ghost{
+      background: transparent;
+      border-color: rgba(255,255,255,.12);
+    }
     .btn.danger{
       background: rgba(255,93,108,.12);
       border-color: rgba(255,93,108,.35);
+    }
+    .btn.violet{
+      background: rgba(179,156,255,.14);
+      border-color: rgba(179,156,255,.32);
     }
     main{padding:16px}
     .grid{
@@ -126,14 +134,12 @@
     .dot.ok{background: var(--ok)}
     .dot.warn{background: var(--warn)}
     .dot.bad{background: var(--bad)}
+    .dot.violet{background: var(--violet)}
     .split{display:flex; gap:10px}
     .split > *{flex:1}
     .small{font-size:12px}
     .hr{height:1px; background: var(--stroke); margin:10px 0}
-    .kbd{
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size:12px; color:var(--muted);
-    }
+    .kbd{font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; color:var(--muted);}
     .toast{
       position: fixed; left:50%; bottom:16px; transform: translateX(-50%);
       background: rgba(17,26,51,.95);
@@ -149,8 +155,19 @@
     .dangerText{color: #ff9aa4}
     .okText{color:#98f5c4}
     .warnText{color:#ffe3a8}
+    .violetText{color:#d6c9ff}
+
+    .hint{
+      font-size:12px;
+      color:var(--muted);
+      border:1px dashed rgba(255,255,255,.16);
+      background: rgba(255,255,255,.03);
+      padding:10px 12px;
+      border-radius:14px;
+    }
   </style>
 </head>
+
 <body>
 <header>
   <div class="wrap row" style="justify-content:space-between; align-items:center;">
@@ -158,7 +175,7 @@
       <div class="logo"></div>
       <div>
         <div>BTX • Acompanhamento Ativo</div>
-        <div class="muted small">MVP Offline (localStorage) • Semáforo de risco • TB como exemplo</div>
+        <div class="muted small">MVP Offline (localStorage) • Semáforo de risco • Motor universal (APS)</div>
       </div>
     </div>
     <div class="row" style="align-items:center;">
@@ -177,7 +194,7 @@
       <h2>👨‍⚕️ Painel do profissional</h2>
 
       <div class="toolbar">
-        <input id="search" placeholder="Buscar por nome, CNS/CPF, condição…" />
+        <input id="search" placeholder="Buscar por nome, CNS/CPF, programa, condição…" />
         <select id="filterRisk">
           <option value="ALL">Todos</option>
           <option value="OK">🟢 Em dia</option>
@@ -195,9 +212,10 @@
 
       <div class="small muted">
         Regra do semáforo (editável no código):
-        <span class="okText">🟢</span> ≤ 2 dias sem check-in •
+        <span class="okText">🟢</span> ≤ 2 dias sem contato/check-in •
         <span class="warnText">🟡</span> 3–6 dias •
-        <span class="dangerText">🔴</span> ≥ 7 dias (ou retorno atrasado)
+        <span class="dangerText">🔴</span> ≥ 7 dias (ou retorno atrasado) •
+        <span class="violetText">🟣</span> sinaliza “baixa adesão” (muitas faltas de dose)
       </div>
     </section>
 
@@ -213,14 +231,45 @@
 
 <script>
 /**
- * BTX Acompanhamento Ativo — MVP Offline
+ * BTX Acompanhamento Ativo — MVP Offline (Motor universal)
  * - Tudo em 1 arquivo
  * - Armazenamento: localStorage
- * - Pode virar PWA depois (manifest + service worker)
+ * - Export/Import JSON
+ * - Imprimir resumo -> salvar em PDF
  */
 
-const STORE_KEY = "btx_followup_v1";
+const STORE_KEY = "btx_followup_v2";
 
+// ====== CONFIG (semáforo + adesão) ======
+const CFG = {
+  GAP_OK_MAX: 2,          // <= 2 dias sem contato/checkin
+  GAP_WARN_MIN: 3,        // 3..6 dias
+  GAP_BAD_MIN: 7,         // >= 7 dias
+  VISIT_LATE_BAD_MIN: 1,  // retorno atrasado >= 1 dia já vira BAD
+
+  // adesão (sinalizador complementar)
+  LOW_ADHERENCE_WEEK_MISSED_BADGE_MIN: 3 // faltou 3+ doses na semana -> sinaliza 🟣
+};
+
+// ====== Programas (universal) ======
+const PROGRAMS = [
+  { id:"tb",       name:"Tuberculose (TDO / mensais)" },
+  { id:"hasdm",    name:"HAS / DM (crônicos)" },
+  { id:"prenatal", name:"Pré-natal" },
+  { id:"mental",   name:"Saúde mental (consulta/medicação)" },
+  { id:"hiv",      name:"HIV/IST (ARV / exames)" },
+  { id:"wound",    name:"Curativo / pós-operatório" },
+  { id:"vac",      name:"Vacinação / retorno programado" },
+  { id:"puerp",    name:"Puerpério / RN" },
+  { id:"other",    name:"Outro (definir)" }
+];
+
+function programName(id){
+  const f = PROGRAMS.find(p=>p.id===id);
+  return f ? f.name : "Outro";
+}
+
+// ====== Utils ======
 function uid(){
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
@@ -231,8 +280,8 @@ function todayISO(){
   const dd = String(d.getDate()).padStart(2,"0");
   return `${yyyy}-${mm}-${dd}`;
 }
-function parseISO(s){ // "YYYY-MM-DD" -> Date local
-  const [y,m,d] = s.split("-").map(Number);
+function parseISO(s){
+  const [y,m,d] = String(s||"").split("-").map(Number);
   return new Date(y, m-1, d);
 }
 function daysBetween(aISO, bISO){
@@ -249,25 +298,6 @@ function fmtBR(iso){
     return iso;
   }
 }
-
-function load(){
-  const raw = localStorage.getItem(STORE_KEY);
-  if(!raw){
-    const seed = { patients: [], created_at: new Date().toISOString(), version: 1 };
-    localStorage.setItem(STORE_KEY, JSON.stringify(seed));
-    return seed;
-  }
-  try{ return JSON.parse(raw); }
-  catch(e){
-    const seed = { patients: [], created_at: new Date().toISOString(), version: 1 };
-    localStorage.setItem(STORE_KEY, JSON.stringify(seed));
-    return seed;
-  }
-}
-function save(db){
-  localStorage.setItem(STORE_KEY, JSON.stringify(db));
-  renderAll();
-}
 function toast(msg){
   const el = document.getElementById("toast");
   el.textContent = msg;
@@ -275,41 +305,78 @@ function toast(msg){
   setTimeout(()=> el.classList.remove("show"), 2200);
 }
 
-// ====== RISCO (Semáforo) ======
-// Você pode ajustar aqui conforme o protocolo que quiser.
-function computeRisk(p){
-  const t = p.tracking;
-  const now = todayISO();
-
-  // Se não tem check-in ainda, usa data de início / cadastro como referência
-  const last = t.last_checkin || t.start_date || p.created_at.slice(0,10);
-  const gap = Math.max(0, daysBetween(last, now));
-
-  // retorno
-  const nextVisit = t.next_visit_date || null;
-  const visitLate = nextVisit ? daysBetween(nextVisit, now) : 0; // >0 significa atrasado
-
-  // regra simples:
-  // - BAD se gap >=7 ou retorno atrasado >=1 dia
-  // - WARN se gap entre 3..6
-  // - OK se gap <=2
-  let level = "OK";
-  let reason = `Último check-in: ${fmtBR(last)} (há ${gap} dia(s))`;
-
-  if(visitLate > 0){
-    level = "BAD";
-    reason = `Retorno atrasado há ${visitLate} dia(s) (previsto: ${fmtBR(nextVisit)})`;
-  } else if(gap >= 7){
-    level = "BAD";
-    reason = `Sem check-in há ${gap} dia(s) (último: ${fmtBR(last)})`;
-  } else if(gap >= 3){
-    level = "WARN";
-    reason = `Atenção: ${gap} dia(s) sem check-in (último: ${fmtBR(last)})`;
+// ====== Storage ======
+function seedDB(){
+  return { patients: [], created_at: new Date().toISOString(), version: 2 };
+}
+function load(){
+  const raw = localStorage.getItem(STORE_KEY);
+  if(!raw){
+    const s = seedDB();
+    localStorage.setItem(STORE_KEY, JSON.stringify(s));
+    return s;
   }
-  return { level, reason, gap, visitLate };
+  try{
+    const json = JSON.parse(raw);
+    if(!json || !Array.isArray(json.patients)) throw new Error("Formato inválido");
+    // migração simples (se vier de v1)
+    for(const p of json.patients){
+      if(!p.program) p.program = { id:"other", custom:"" };
+      if(!p.tracking) p.tracking = {};
+      if(!p.adherence) p.adherence = { missed_week: 0, last_taken: "", last_contact: "" };
+      if(!Array.isArray(p.events)) p.events = [];
+    }
+    return json;
+  }catch(e){
+    const s = seedDB();
+    localStorage.setItem(STORE_KEY, JSON.stringify(s));
+    return s;
+  }
+}
+function save(db){
+  localStorage.setItem(STORE_KEY, JSON.stringify(db));
+  renderAll();
 }
 
-// ====== UI / STATE ======
+// ====== Risk engine (universal) ======
+function computeRisk(p){
+  const now = todayISO();
+
+  // "last_contact" é mais geral que "last_checkin" (pode ser ligação, ACS, retorno, etc.)
+  const lastContact =
+    p.adherence?.last_contact ||
+    p.tracking?.last_checkin ||
+    p.tracking?.start_date ||
+    (p.created_at ? p.created_at.slice(0,10) : now);
+
+  const gap = Math.max(0, daysBetween(lastContact, now));
+
+  // retorno
+  const nextVisit = p.tracking?.next_visit_date || null;
+  const visitLate = nextVisit ? daysBetween(nextVisit, now) : 0; // >0 atrasado
+
+  let level = "OK";
+  let reason = `Último contato: ${fmtBR(lastContact)} (há ${gap} dia(s))`;
+
+  if(visitLate >= CFG.VISIT_LATE_BAD_MIN){
+    level = "BAD";
+    reason = `Retorno atrasado há ${visitLate} dia(s) (previsto: ${fmtBR(nextVisit)})`;
+  } else if(gap >= CFG.GAP_BAD_MIN){
+    level = "BAD";
+    reason = `Sem contato há ${gap} dia(s) (último: ${fmtBR(lastContact)})`;
+  } else if(gap >= CFG.GAP_WARN_MIN){
+    level = "WARN";
+    reason = `Atenção: ${gap} dia(s) sem contato (último: ${fmtBR(lastContact)})`;
+  }
+
+  // sinalizador de baixa adesão (não muda o nível, mas sinaliza 🟣)
+  const missed = Number(p.adherence?.missed_week || 0);
+  const lowAdherence = missed >= CFG.LOW_ADHERENCE_WEEK_MISSED_BADGE_MIN;
+
+  return { level, reason, gap, visitLate, lowAdherence, missed, lastContact };
+}
+
+// ====== UI state ======
 let DB = load();
 let selectedId = null;
 
@@ -342,14 +409,15 @@ function renderAll(){
 
 function renderStats(){
   const pts = DB.patients;
-  let ok=0,warn=0,bad=0;
+  let ok=0,warn=0,bad=0, violet=0;
   for(const p of pts){
-    const r = computeRisk(p).level;
-    if(r==="OK") ok++;
-    else if(r==="WARN") warn++;
+    const r = computeRisk(p);
+    if(r.level==="OK") ok++;
+    else if(r.level==="WARN") warn++;
     else bad++;
+    if(r.lowAdherence) violet++;
   }
-  elStatsPill.textContent = `Pacientes: ${pts.length} • 🟢 ${ok} • 🟡 ${warn} • 🔴 ${bad}`;
+  elStatsPill.textContent = `Pacientes: ${pts.length} • 🟢 ${ok} • 🟡 ${warn} • 🔴 ${bad} • 🟣 ${violet}`;
 }
 
 function renderList(){
@@ -361,16 +429,21 @@ function renderList(){
     .filter(({p,risk})=>{
       if(filter !== "ALL" && risk.level !== filter) return false;
       if(!q) return true;
+
+      const prog = (p.program?.id==="other" ? (p.program?.custom||"Outro") : programName(p.program?.id));
       const hay = [
-        p.name, p.id_doc||"", p.condition||"",
-        p.tracking?.regimen||"", p.notes||""
+        p.name, p.id_doc||"",
+        prog,
+        p.condition||"",
+        p.tracking?.regimen||"",
+        p.notes||""
       ].join(" ").toLowerCase();
       return hay.includes(q);
     })
     .sort((a,b)=>{
       const order = { "BAD":0, "WARN":1, "OK":2 };
       if(order[a.risk.level] !== order[b.risk.level]) return order[a.risk.level] - order[b.risk.level];
-      // se mesmo risco, mais dias sem checkin primeiro
+      // se mesmo risco, mais dias sem contato primeiro
       return (b.risk.gap - a.risk.gap);
     });
 
@@ -382,20 +455,34 @@ function renderList(){
 
   for(const {p,risk} of rows){
     const isSel = p.id === selectedId;
-    const dotClass = risk.level === "OK" ? "ok" : (risk.level === "WARN" ? "warn" : "bad");
-    const label = risk.level === "OK" ? "Em dia" : (risk.level === "WARN" ? "Atenção" : "Risco");
+
+    const dotClass =
+      risk.level === "OK" ? "ok" :
+      (risk.level === "WARN" ? "warn" : "bad");
+
+    const label =
+      risk.level === "OK" ? "Em dia" :
+      (risk.level === "WARN" ? "Atenção" : "Risco");
+
+    const prog = (p.program?.id==="other" ? (p.program?.custom||"Outro") : programName(p.program?.id));
+    const adherenceTag = risk.lowAdherence ? `<span class="badge" title="Baixa adesão (muitas faltas na semana)"><span class="dot violet"></span>Baixa adesão</span>` : "";
+
     const item = document.createElement("div");
     item.className = "item";
     item.style.outline = isSel ? "2px solid rgba(74,163,255,.55)" : "none";
 
     item.innerHTML = `
       <div class="left">
-        <div class="title">${escapeHTML(p.name)} <span class="muted small">• ${escapeHTML(p.condition || "—")}</span></div>
+        <div class="title">${escapeHTML(p.name)}
+          <span class="muted small">• ${escapeHTML(prog)}</span>
+          <span class="muted small">• ${escapeHTML(p.condition || "—")}</span>
+        </div>
         <div class="sub">${escapeHTML(risk.reason)}</div>
         <div class="sub">Doc/CNS/CPF: <span class="mono">${escapeHTML(p.id_doc || "—")}</span></div>
       </div>
       <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
         <span class="badge"><span class="dot ${dotClass}"></span>${label}</span>
+        ${adherenceTag}
         <button class="btn" data-open="${p.id}">Abrir</button>
       </div>
     `;
@@ -417,25 +504,45 @@ function renderPatientCard(){
       <div class="toolbar">
         <button class="btn primary" onclick="openPatientForm()">+ Novo paciente</button>
       </div>
+      <div class="hr"></div>
+      <div class="hint">
+        💡 Ideia do app: ele não é “TB”, ele é “continuidade do cuidado”. TB é só um dos programas.
+      </div>
     `;
     return;
   }
+
+  // Normaliza estruturas
+  if(!p.program) p.program = { id:"other", custom:"" };
+  if(!p.tracking) p.tracking = {};
+  if(!p.adherence) p.adherence = { missed_week: 0, last_taken: "", last_contact: "" };
+  if(!Array.isArray(p.events)) p.events = [];
 
   const risk = computeRisk(p);
   const dotClass = risk.level === "OK" ? "ok" : (risk.level === "WARN" ? "warn" : "bad");
   const label = risk.level === "OK" ? "🟢 Em dia" : (risk.level === "WARN" ? "🟡 Atenção" : "🔴 Risco");
 
-  const last = p.tracking.last_checkin || "—";
+  const prog = (p.program.id==="other" ? (p.program.custom||"Outro") : programName(p.program.id));
+
+  const lastContact = risk.lastContact || "—";
   const next = p.tracking.next_visit_date || "—";
+  const missed = Number(p.adherence.missed_week||0);
 
   elPatientCard.innerHTML = `
     <div class="row" style="justify-content:space-between; align-items:flex-start;">
       <div style="min-width:0;">
         <h2 style="margin-bottom:6px;">${escapeHTML(p.name)}</h2>
-        <div class="muted small">Condição: <b>${escapeHTML(p.condition || "—")}</b> • Doc: <span class="mono">${escapeHTML(p.id_doc||"—")}</span></div>
+        <div class="muted small">
+          Programa: <b>${escapeHTML(prog)}</b>
+          • Condição: <b>${escapeHTML(p.condition || "—")}</b>
+          • Doc: <span class="mono">${escapeHTML(p.id_doc||"—")}</span>
+        </div>
         <div class="muted small">Criado em: ${fmtBR(p.created_at.slice(0,10))}</div>
       </div>
-      <div class="badge"><span class="dot ${dotClass}"></span>${label}</div>
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+        <div class="badge"><span class="dot ${dotClass}"></span>${label}</div>
+        ${risk.lowAdherence ? `<div class="badge"><span class="dot violet"></span>🟣 Baixa adesão</div>` : ``}
+      </div>
     </div>
 
     <div class="hr"></div>
@@ -444,16 +551,22 @@ function renderPatientCard(){
       <div class="card" style="padding:12px; background:rgba(255,255,255,.03);">
         <div class="title">📌 Acompanhamento</div>
         <div class="sub">Início: <b>${fmtBR(p.tracking.start_date || "—")}</b></div>
-        <div class="sub">Esquema: <b>${escapeHTML(p.tracking.regimen || "—")}</b></div>
-        <div class="sub">Duração prevista: <b>${escapeHTML(p.tracking.duration_months || "—")}</b> meses</div>
-        <div class="sub">Último check-in: <b>${last==="—" ? "—" : fmtBR(last)}</b></div>
+        <div class="sub">Protocolo / esquema: <b>${escapeHTML(p.tracking.regimen || "—")}</b></div>
+        <div class="sub">Duração prevista: <b>${escapeHTML(String(p.tracking.duration_months ?? "—"))}</b> meses</div>
+        <div class="sub">Último contato: <b>${lastContact==="—" ? "—" : fmtBR(lastContact)}</b></div>
         <div class="sub">Próximo retorno: <b>${next==="—" ? "—" : fmtBR(next)}</b></div>
       </div>
 
       <div class="card" style="padding:12px; background:rgba(255,255,255,.03);">
-        <div class="title">⚡ Ações rápidas</div>
-        <div class="row">
+        <div class="title">⚡ Check-in rápido (adesão/continuidade)</div>
+        <div class="sub">Faltas na semana: <b>${missed}</b></div>
+
+        <div class="row" style="margin-top:8px;">
           <button class="btn primary" id="btnTaken">✅ Tomei hoje</button>
+          <button class="btn violet" id="btnMissed">➖ Faltou dose</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="btnContact">📞 Registrar contato</button>
           <button class="btn" id="btnSideFx">⚠️ Efeito colateral</button>
         </div>
         <div class="row">
@@ -464,6 +577,7 @@ function renderPatientCard(){
           <button class="btn" id="btnPrint">🖨️ Imprimir resumo</button>
           <button class="btn danger" id="btnDelete">🗑️ Excluir</button>
         </div>
+
         <div class="sub">Motivo do semáforo: ${escapeHTML(risk.reason)}</div>
       </div>
     </div>
@@ -474,7 +588,7 @@ function renderPatientCard(){
 
     <div class="field">
       <label>Notas rápidas (visão clínica objetiva)</label>
-      <textarea id="notes" placeholder="Ex.: orientado sobre adesão; náuseas leves; reforço de retorno mensal…">${escapeHTML(p.notes||"")}</textarea>
+      <textarea id="notes" placeholder="Ex.: orientado sobre adesão; ACS acionado; reforço de retorno…">${escapeHTML(p.notes||"")}</textarea>
       <div class="toolbar">
         <button class="btn" id="btnSaveNotes">Salvar notas</button>
         <span class="muted small">Dica: manter curto, estilo “linha do tempo”.</span>
@@ -484,7 +598,7 @@ function renderPatientCard(){
     <div class="hr"></div>
 
     <div class="title">📜 Linha do tempo (eventos)</div>
-    <div class="muted small">Check-ins, efeitos colaterais, retornos e registros rápidos.</div>
+    <div class="muted small">Check-ins, faltas, contatos, efeitos colaterais, retornos e registros rápidos.</div>
     <div style="margin-top:10px;" class="list" id="timeline"></div>
 
     <div class="hr"></div>
@@ -500,6 +614,7 @@ function renderPatientCard(){
         <select id="evType">
           <option value="note">Nota</option>
           <option value="call">Contato/ligação</option>
+          <option value="acs">Visita/ACS</option>
           <option value="visit">Atendimento/retorno</option>
           <option value="exam">Exame</option>
         </select>
@@ -516,10 +631,12 @@ function renderPatientCard(){
   `;
 
   // Wire events
-  document.getElementById("btnTaken").onclick = ()=> addCheckin(p.id, "taken");
+  document.getElementById("btnTaken").onclick = ()=> markTaken(p.id);
+  document.getElementById("btnMissed").onclick = ()=> markMissed(p.id);
+  document.getElementById("btnContact").onclick = ()=> registerContact(p.id);
   document.getElementById("btnSideFx").onclick = ()=> {
     const desc = prompt("Descreva o efeito colateral (curto):", "Náusea / dor abdominal / tontura…");
-    if(desc && desc.trim()) addCheckin(p.id, "sidefx", desc.trim());
+    if(desc && desc.trim()) addEvent(p.id, { date: todayISO(), type:"sidefx", text: desc.trim() }, { touchContact:true });
   };
   document.getElementById("btnVisitDone").onclick = ()=> markVisitDone(p.id);
   document.getElementById("btnSetNext").onclick = ()=> setNextVisit(p.id);
@@ -537,7 +654,7 @@ function renderPatientCard(){
     const type = document.getElementById("evType").value;
     const text = (document.getElementById("evText").value || "").trim();
     if(!text) return toast("Escreva uma descrição.");
-    addEvent(p.id, { date, type, text });
+    addEvent(p.id, { date, type, text }, { touchContact: (type!=="exam") });
     document.getElementById("evText").value = "";
     toast("Evento adicionado.");
   };
@@ -557,20 +674,26 @@ function renderTimeline(p){
     return;
   }
 
+  const tagLabel = (ev) => {
+    switch(ev.type){
+      case "taken": return "✅ Dose confirmada";
+      case "missed": return "➖ Falta de dose";
+      case "sidefx": return "⚠️ Efeito colateral";
+      case "visit": return "🏥 Atendimento/retorno";
+      case "call": return "📞 Contato";
+      case "acs": return "🧑‍🤝‍🧑 Visita/ACS";
+      case "exam": return "🧪 Exame";
+      default: return "📝 Nota";
+    }
+  };
+
   el.innerHTML = "";
   for(const ev of events){
-    const tag = ev.type === "taken" ? "✅ Dose confirmada"
-              : ev.type === "sidefx" ? "⚠️ Efeito colateral"
-              : ev.type === "visit" ? "🏥 Atendimento/retorno"
-              : ev.type === "call" ? "📞 Contato"
-              : ev.type === "exam" ? "🧪 Exame"
-              : "📝 Nota";
-
     const item = document.createElement("div");
     item.className = "item";
     item.innerHTML = `
       <div class="left">
-        <div class="title">${tag} <span class="muted small">• ${fmtBR(ev.date)}</span></div>
+        <div class="title">${tagLabel(ev)} <span class="muted small">• ${fmtBR(ev.date)}</span></div>
         <div class="sub">${escapeHTML(ev.text || "")}</div>
       </div>
       <div>
@@ -586,20 +709,33 @@ function renderTimeline(p){
   }
 }
 
-// ====== CRUD ======
+// ====== CRUD helpers ======
 function updatePatient(id, patch){
   const idx = DB.patients.findIndex(x => x.id === id);
   if(idx < 0) return;
   DB.patients[idx] = { ...DB.patients[idx], ...patch };
   save(DB);
 }
-function addEvent(patientId, ev){
+
+function touchLastContact(p, isoDate){
+  if(!p.adherence) p.adherence = { missed_week:0, last_taken:"", last_contact:"" };
+  p.adherence.last_contact = isoDate;
+}
+
+function addEvent(patientId, ev, opts={touchContact:false}){
   const p = DB.patients.find(x => x.id === patientId);
   if(!p) return;
   p.events = p.events || [];
-  p.events.push({ id: uid(), ...ev });
+  const full = { id: uid(), ...ev };
+  p.events.push(full);
+
+  if(opts.touchContact){
+    touchLastContact(p, ev.date || todayISO());
+  }
+
   save(DB);
 }
+
 function removeEvent(patientId, eventId){
   const p = DB.patients.find(x => x.id === patientId);
   if(!p) return;
@@ -607,22 +743,48 @@ function removeEvent(patientId, eventId){
   save(DB);
   toast("Evento removido.");
 }
-function addCheckin(patientId, kind, desc=""){
+
+// ====== Actions ======
+function markTaken(patientId){
   const now = todayISO();
   const p = DB.patients.find(x => x.id === patientId);
   if(!p) return;
 
-  p.tracking.last_checkin = now;
+  if(!p.adherence) p.adherence = { missed_week:0, last_taken:"", last_contact:"" };
+  p.adherence.last_taken = now;
+  touchLastContact(p, now);
 
-  if(kind === "taken"){
-    addEvent(patientId, { date: now, type: "taken", text: "Dose confirmada pelo paciente." });
-    toast("Check-in registrado: tomou hoje.");
-  } else {
-    addEvent(patientId, { date: now, type: "sidefx", text: desc || "Efeito colateral relatado." });
-    toast("Registrado: efeito colateral.");
-  }
-  save(DB);
+  // “tomou hoje” não zera faltas automaticamente; mas você pode zerar se quiser
+  addEvent(patientId, { date: now, type:"taken", text:"Dose/adesão confirmada." }, { touchContact:true });
+  toast("Check-in registrado: tomou hoje.");
 }
+
+function markMissed(patientId){
+  const now = todayISO();
+  const p = DB.patients.find(x => x.id === patientId);
+  if(!p) return;
+
+  if(!p.adherence) p.adherence = { missed_week:0, last_taken:"", last_contact:"" };
+  p.adherence.missed_week = Number(p.adherence.missed_week||0) + 1;
+
+  addEvent(patientId, { date: now, type:"missed", text:"Registrada falta de dose (semana)." }, { touchContact:true });
+  toast("Registrado: faltou dose.");
+}
+
+function registerContact(patientId){
+  const p = DB.patients.find(x => x.id === patientId);
+  if(!p) return;
+
+  const kind = prompt("Tipo de contato (ex.: ligação, WhatsApp, ACS, visita):", "Ligação");
+  if(!kind) return;
+
+  const note = prompt("Resumo do contato (curto):", "Orientado sobre adesão / reagendado retorno…") || "";
+  const now = todayISO();
+
+  addEvent(patientId, { date: now, type:"call", text: `${kind}: ${note}`.trim() }, { touchContact:true });
+  toast("Contato registrado.");
+}
+
 function setNextVisit(patientId){
   const p = DB.patients.find(x => x.id === patientId);
   if(!p) return;
@@ -631,11 +793,13 @@ function setNextVisit(patientId){
   const val = prompt("Próximo retorno (YYYY-MM-DD):", suggested || todayISO());
   if(!val) return;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(val)) return toast("Formato inválido.");
+
   p.tracking.next_visit_date = val;
-  addEvent(patientId, { date: todayISO(), type: "note", text: `Retorno agendado para ${fmtBR(val)}.` });
+  addEvent(patientId, { date: todayISO(), type:"note", text: `Retorno agendado para ${fmtBR(val)}.` }, { touchContact:false });
   save(DB);
   toast("Retorno agendado.");
 }
+
 function markVisitDone(patientId){
   const p = DB.patients.find(x => x.id === patientId);
   if(!p) return;
@@ -644,16 +808,19 @@ function markVisitDone(patientId){
   if(!date) return;
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast("Formato inválido.");
 
-  addEvent(patientId, { date, type:"visit", text:"Retorno realizado." });
+  // retorno conta como contato
+  addEvent(patientId, { date, type:"visit", text:"Retorno realizado." }, { touchContact:true });
 
-  // sugestão: próximo retorno em 30 dias (simplão)
+  // sugestão: próximo retorno em 30 dias (simples)
   const d = parseISO(date);
   d.setDate(d.getDate()+30);
   const next = d.toISOString().slice(0,10);
   p.tracking.next_visit_date = next;
+
   save(DB);
   toast("Retorno registrado (próximo sugerido +30d).");
 }
+
 function deletePatient(patientId){
   if(!confirm("Excluir paciente e todos os eventos?")) return;
   DB.patients = DB.patients.filter(x => x.id !== patientId);
@@ -662,28 +829,37 @@ function deletePatient(patientId){
   toast("Paciente excluído.");
 }
 
-// ====== FORM (Novo/Editar Paciente) ======
+// ====== Form (novo/editar) ======
 function openPatientForm(existing=null){
   const isEdit = !!existing;
+
   const p = existing || {
     id: uid(),
     created_at: new Date().toISOString(),
     name: "",
     id_doc: "",
-    condition: "Tuberculose",
+    program: { id:"hasdm", custom:"" },
+    condition: "",
     notes: "",
     tracking: {
       start_date: todayISO(),
-      regimen: "RHZE (exemplo)",
+      regimen: "",
       duration_months: 6,
       next_visit_date: ""
     },
+    adherence: { missed_week: 0, last_taken:"", last_contact:"" },
     events: []
   };
 
+  // defaults seguros
+  if(!p.program) p.program = { id:"other", custom:"" };
+  if(!p.tracking) p.tracking = { start_date: todayISO(), regimen:"", duration_months:6, next_visit_date:"" };
+  if(!p.adherence) p.adherence = { missed_week:0, last_taken:"", last_contact:"" };
+  if(!Array.isArray(p.events)) p.events = [];
+
   elPatientCard.innerHTML = `
     <h2>${isEdit ? "✏️ Editar paciente" : "➕ Novo paciente"}</h2>
-    <div class="muted small">Cadastro simples, rápido e prático. Regra de ouro: <b>30 segundos</b>.</div>
+    <div class="muted small">Cadastro rápido. Regra de ouro: <b>30 segundos</b>. (Programa + condição + retorno)</div>
     <div class="hr"></div>
 
     <div class="field">
@@ -697,25 +873,37 @@ function openPatientForm(existing=null){
         <input id="fDoc" value="${escapeAttr(p.id_doc)}" placeholder="Ex.: CNS / CPF" />
       </div>
       <div class="field">
-        <label>Condição principal</label>
-        <input id="fCond" value="${escapeAttr(p.condition)}" placeholder="Ex.: Tuberculose" />
+        <label>Programa de cuidado</label>
+        <select id="fProg">
+          ${PROGRAMS.map(pr => `<option value="${pr.id}" ${pr.id===p.program.id?"selected":""}>${escapeHTML(pr.name)}</option>`).join("")}
+        </select>
       </div>
+    </div>
+
+    <div class="field" id="progOtherWrap" style="display:${p.program.id==="other"?"block":"none"};">
+      <label>Se “Outro”, descreva</label>
+      <input id="fProgOther" value="${escapeAttr(p.program.custom||"")}" placeholder="Ex.: Hanseníase / Tabagismo / Reabilitação…" />
+    </div>
+
+    <div class="field">
+      <label>Condição principal (livre)</label>
+      <input id="fCond" value="${escapeAttr(p.condition||"")}" placeholder="Ex.: TB pulmonar / HAS estágio 2 / DM2 / depressão…" />
     </div>
 
     <div class="split">
       <div class="field">
-        <label>Início do tratamento</label>
+        <label>Data de início (ou cadastro)</label>
         <input id="fStart" type="date" value="${escapeAttr(p.tracking.start_date || todayISO())}" />
       </div>
       <div class="field">
-        <label>Duração (meses)</label>
-        <input id="fDur" type="number" min="1" max="36" value="${escapeAttr(String(p.tracking.duration_months ?? 6))}" />
+        <label>Duração (meses) (opcional)</label>
+        <input id="fDur" type="number" min="1" max="60" value="${escapeAttr(String(p.tracking.duration_months ?? 6))}" />
       </div>
     </div>
 
     <div class="field">
-      <label>Esquema / protocolo (texto)</label>
-      <input id="fReg" value="${escapeAttr(p.tracking.regimen || "")}" placeholder="Ex.: RHZE" />
+      <label>Protocolo / esquema / plano (texto)</label>
+      <input id="fReg" value="${escapeAttr(p.tracking.regimen || "")}" placeholder="Ex.: anti-hipertensivo + retorno mensal / RHZE / psicoterapia…" />
     </div>
 
     <div class="field">
@@ -725,35 +913,51 @@ function openPatientForm(existing=null){
 
     <div class="field">
       <label>Notas rápidas</label>
-      <textarea id="fNotes" placeholder="Ex.: orientado sobre adesão; contato ACS…">${escapeHTML(p.notes || "")}</textarea>
+      <textarea id="fNotes" placeholder="Ex.: risco social; dificuldade de acesso; reforço de adesão…">${escapeHTML(p.notes || "")}</textarea>
     </div>
 
     <div class="toolbar">
       <button class="btn primary" id="btnSave">${isEdit ? "Salvar alterações" : "Salvar paciente"}</button>
-      <button class="btn" id="btnCancel">Cancelar</button>
+      <button class="btn ghost" id="btnCancel">Cancelar</button>
     </div>
 
     <div class="hr"></div>
-    <div class="muted small">
-      Dica de TB: se você quiser, depois a gente adiciona “fases”, “baciloscopia mensal”, “DOT/TS”, e alertas por microárea.
+    <div class="hint">
+      ✅ Agora o app serve pra <b>qualquer</b> linha de cuidado: TB, crônicos, pré-natal, saúde mental, HIV/IST, curativos…<br>
+      O semáforo mede <b>perda de seguimento</b> (dias sem contato) + retorno atrasado + baixa adesão.
     </div>
   `;
 
+  document.getElementById("fProg").onchange = (e)=>{
+    const v = e.target.value;
+    document.getElementById("progOtherWrap").style.display = (v==="other") ? "block" : "none";
+  };
+
   document.getElementById("btnCancel").onclick = ()=> { renderPatientCard(); };
+
   document.getElementById("btnSave").onclick = ()=>{
     const name = (document.getElementById("fName").value || "").trim();
     if(!name) return toast("Nome é obrigatório.");
 
     p.name = name;
     p.id_doc = (document.getElementById("fDoc").value || "").trim();
-    p.condition = (document.getElementById("fCond").value || "").trim() || "—";
+
+    const progId = document.getElementById("fProg").value;
+    const progOther = (document.getElementById("fProgOther")?.value || "").trim();
+    p.program = { id: progId, custom: progId==="other" ? progOther : "" };
+
+    p.condition = (document.getElementById("fCond").value || "").trim();
 
     p.tracking.start_date = document.getElementById("fStart").value || todayISO();
     p.tracking.duration_months = Number(document.getElementById("fDur").value || 6);
-    p.tracking.regimen = (document.getElementById("fReg").value || "").trim() || "—";
+    p.tracking.regimen = (document.getElementById("fReg").value || "").trim();
     p.tracking.next_visit_date = document.getElementById("fNext").value || "";
 
     p.notes = document.getElementById("fNotes").value || "";
+
+    // se não tem last_contact ainda, assume início/cadastro
+    if(!p.adherence) p.adherence = { missed_week:0, last_taken:"", last_contact:"" };
+    if(!p.adherence.last_contact) p.adherence.last_contact = p.tracking.start_date || todayISO();
 
     if(isEdit){
       const idx = DB.patients.findIndex(x => x.id === p.id);
@@ -764,8 +968,13 @@ function openPatientForm(existing=null){
     } else {
       DB.patients.push(p);
       selectedId = p.id;
-      // cria um evento inicial
-      addEvent(p.id, { date: todayISO(), type:"note", text:`Cadastro criado. Início do tratamento: ${fmtBR(p.tracking.start_date)}.` });
+
+      addEvent(p.id, {
+        date: todayISO(),
+        type:"note",
+        text:`Cadastro criado. Programa: ${programName(p.program.id)}${p.program.id==="other" && p.program.custom ? " ("+p.program.custom+")" : ""}.`
+      }, { touchContact:true });
+
       save(DB);
       toast("Paciente criado.");
     }
@@ -796,6 +1005,16 @@ function importData(){
       const json = JSON.parse(text);
       if(!json || !Array.isArray(json.patients)) throw new Error("Formato inválido.");
       DB = json;
+
+      // normaliza
+      for(const p of DB.patients){
+        if(!p.program) p.program = { id:"other", custom:"" };
+        if(!p.tracking) p.tracking = { start_date: todayISO(), regimen:"", duration_months:6, next_visit_date:"" };
+        if(!p.adherence) p.adherence = { missed_week:0, last_taken:"", last_contact:"" };
+        if(!Array.isArray(p.events)) p.events = [];
+        if(!p.adherence.last_contact) p.adherence.last_contact = p.tracking.start_date || (p.created_at ? p.created_at.slice(0,10) : todayISO());
+      }
+
       selectedId = DB.patients[0]?.id || null;
       save(DB);
       toast("Importação concluída.");
@@ -812,7 +1031,8 @@ function printSummary(patientId){
   if(!p) return;
   const r = computeRisk(p);
 
-  const events = [...(p.events||[])].sort((a,b)=> (a.date < b.date ? 1 : -1)).slice(0, 25);
+  const prog = (p.program?.id==="other" ? (p.program?.custom||"Outro") : programName(p.program?.id));
+  const events = [...(p.events||[])].sort((a,b)=> (a.date < b.date ? 1 : -1)).slice(0, 30);
 
   const html = `
   <html><head><meta charset="utf-8"/>
@@ -832,17 +1052,19 @@ function printSummary(patientId){
 
     <div class="box">
       <div><b>Paciente:</b> ${escapeHTML(p.name)}</div>
+      <div><b>Programa:</b> ${escapeHTML(prog)}</div>
       <div><b>Condição:</b> ${escapeHTML(p.condition||"—")}</div>
       <div><b>Documento/CNS/CPF:</b> ${escapeHTML(p.id_doc||"—")}</div>
       <div><b>Semáforo:</b> <span class="badge">${r.level}</span> — ${escapeHTML(r.reason)}</div>
+      <div><b>Baixa adesão (faltas/semana):</b> ${Number(p.adherence?.missed_week||0)}</div>
     </div>
 
     <div class="box">
-      <div><b>Início:</b> ${fmtBR(p.tracking.start_date || "—")}</div>
-      <div><b>Esquema:</b> ${escapeHTML(p.tracking.regimen || "—")}</div>
-      <div><b>Duração prevista:</b> ${escapeHTML(String(p.tracking.duration_months || "—"))} meses</div>
-      <div><b>Último check-in:</b> ${p.tracking.last_checkin ? fmtBR(p.tracking.last_checkin) : "—"}</div>
-      <div><b>Próximo retorno:</b> ${p.tracking.next_visit_date ? fmtBR(p.tracking.next_visit_date) : "—"}</div>
+      <div><b>Início:</b> ${fmtBR(p.tracking?.start_date || "—")}</div>
+      <div><b>Plano/Protocolo:</b> ${escapeHTML(p.tracking?.regimen || "—")}</div>
+      <div><b>Duração prevista:</b> ${escapeHTML(String(p.tracking?.duration_months ?? "—"))} meses</div>
+      <div><b>Último contato:</b> ${p.adherence?.last_contact ? fmtBR(p.adherence.last_contact) : "—"}</div>
+      <div><b>Próximo retorno:</b> ${p.tracking?.next_visit_date ? fmtBR(p.tracking.next_visit_date) : "—"}</div>
     </div>
 
     <div class="box">
@@ -851,7 +1073,7 @@ function printSummary(patientId){
     </div>
 
     <div class="box">
-      <div><b>Últimos eventos (até 25)</b></div>
+      <div><b>Últimos eventos (até 30)</b></div>
       <table>
         <thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th></tr></thead>
         <tbody>
@@ -877,7 +1099,7 @@ function printSummary(patientId){
   setTimeout(()=> w.print(), 350);
 }
 
-// ====== Helpers anti-injeção (simples) ======
+// ====== Helpers ======
 function escapeHTML(str){
   return String(str)
     .replaceAll("&","&amp;")
@@ -899,6 +1121,7 @@ function firstRunSelect(){
 firstRunSelect();
 renderAll();
 </script>
+
   <!-- BACKUP: versão estável 16-12-2025 -->
 </body>
 </html>
