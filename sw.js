@@ -1,5 +1,6 @@
-const CACHE_NAME = "btx-followup-v1";
-const ASSETS = [
+// BTX PWA Service Worker (cache versionado)
+const CACHE_NAME = "btx-followup-v3";
+const CORE_ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
@@ -8,37 +9,55 @@ const ASSETS = [
   "./icons/icon-512.png"
 ];
 
-// instala e guarda o essencial
+// Instala e cacheia o essencial
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
-  );
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS))
+  );
 });
 
-// ativa e limpa cache antigo
+// Ativa e remove caches antigos
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null)))
-    )
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.map((key) => (key !== CACHE_NAME ? caches.delete(key) : null))
+      );
+      await self.clients.claim();
+    })()
   );
-  self.clients.claim();
 });
 
-// busca: primeiro cache, depois rede; e salva no cache quando pegar da rede
+// Estratégia:
+// - HTML: network-first (pra atualizar mais fácil)
+// - resto: cache-first (pra offline ficar liso)
 self.addEventListener("fetch", (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
+  const req = event.request;
+  const url = new URL(req.url);
 
-      return fetch(event.request)
-        .then((resp) => {
-          const copy = resp.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return resp;
+  // Só cuida do seu próprio domínio
+  if (url.origin !== location.origin) return;
+
+  const isHTML =
+    req.mode === "navigate" ||
+    (req.headers.get("accept") || "").includes("text/html");
+
+  if (isHTML) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+          return res;
         })
-        .catch(() => caches.match("./index.html"));
-    })
+        .catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(req).then((cached) => cached || fetch(req))
   );
 });
